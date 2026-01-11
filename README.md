@@ -1,4 +1,4 @@
-# clarity
+# CLAIRTY
 ### Turning medical, insurance, and institutional language into plain-English action steps
 
 **clarity** is a Swift-based iOS app that helps people understand what to do **after** a medical or institutional interaction — when confusion is highest and guidance is weakest.
