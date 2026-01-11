@@ -6,110 +6,200 @@
 //
 
 
+//
+//  InputView.swift
+//  CLAIRTY
+//
+
 import SwiftUI
 import PhotosUI
+import UniformTypeIdentifiers
+import UIKit
 
 struct InputView: View {
     @StateObject private var viewModel = InputViewModel()
     @State private var selectedItem: PhotosPickerItem?
+    @State private var showPickError = false
+    @State private var pickErrorMessage = ""
+
     @State private var showCamera = false
     @State private var showProcessing = false
+    @State private var showPDFImporter = false
+    @State private var showImageImporter = false
+
+    private func copyToTempIfNeeded(url: URL) -> URL? {
+        let gotAccess = url.startAccessingSecurityScopedResource()
+        defer { if gotAccess { url.stopAccessingSecurityScopedResource() } }
+
+        let fm = FileManager.default
+        let dest = fm.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + "-" + url.lastPathComponent)
+
+        do {
+            if fm.fileExists(atPath: dest.path) { try fm.removeItem(at: dest) }
+            try fm.copyItem(at: url, to: dest)
+            return dest
+        } catch {
+            return nil
+        }
+    }
 
     var body: some View {
         Form {
-            Section(header: Text("Select What Happened")) {
-                Picker("Type", selection: $viewModel.inputData.diagnosis) {
-                    Text("GP Visit").tag("GP Visit" as String?)
-                    Text("ER Discharge").tag("ER Discharge" as String?)
-                    Text("Specialist Consult").tag("Specialist Consult" as String?)
-                    //Text("Insurance Letter").tag("Insurance Letter" as String?)
-                    //Text("Other Document").tag("Other Document" as String?)
+            Section(header: Text("Upload")) {
+                PhotosPicker("Choose Photo (Photos)", selection: $selectedItem, matching: .images)
+
+                Button {
+                    showImageImporter = true
+                } label: {
+                    HStack {
+                        Image(systemName: "doc")
+                        Text("Choose Image (Files)")
+                    }
                 }
-            }
-            
-            Section(header: Text("Input Text")) {
-                TextEditor(text: Binding(
-                    get: { viewModel.inputData.text ?? "" },
-                    set: { viewModel.inputData.text = $0.isEmpty ? nil : $0 }
-                ))
-                .frame(minHeight: 100)
-            }
-            
-            Section(header: Text("Upload Document")) {
-                PhotosPicker("Select Image from Library", selection: $selectedItem, matching: .images)
-                
-                Button(action: {
+
+                Button {
+                    showPDFImporter = true
+                } label: {
+                    HStack {
+                        Image(systemName: "doc.richtext")
+                        Text("Choose PDF (Files)")
+                    }
+                }
+
+                Button {
                     showCamera = true
-                }) {
+                } label: {
                     HStack {
                         Image(systemName: "camera")
                         Text("Take Photo")
                     }
                 }
-                
-                if viewModel.inputData.image != nil {
+
+                if viewModel.selectedImage != nil {
                     HStack {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text("Image selected")
-                            .foregroundColor(.secondary)
+                        Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+                        Text("Image selected").foregroundColor(.secondary)
+                    }
+                } else if viewModel.selectedPDFURL != nil {
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+                        Text("PDF selected").foregroundColor(.secondary)
+                    }
+                }
+
+                if viewModel.selectedImage != nil || viewModel.selectedPDFURL != nil {
+                    Button(role: .destructive) {
+                        viewModel.clearSelection()
+                        selectedItem = nil
+                    } label: {
+                        Text("Clear selection")
                     }
                 }
             }
-            
-            Section(header: Text("Optional Information")) {
-                TextField("Symptoms (comma-separated)", text: Binding(
-                    get: { viewModel.inputData.symptoms?.joined(separator: ", ") ?? "" },
-                    set: {
-                        let value = $0.trimmingCharacters(in: .whitespaces)
-                        viewModel.inputData.symptoms = value.isEmpty ? nil : value.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }
-                    }
-                ))
-                
-                TextField("Current Medications (comma-separated)", text: Binding(
-                    get: { viewModel.inputData.medications?.joined(separator: ", ") ?? "" },
-                    set: {
-                        let value = $0.trimmingCharacters(in: .whitespaces)
-                        viewModel.inputData.medications = value.isEmpty ? nil : value.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }
-                    }
-                ))
-            }
-            
+
             Section {
-                Button(action: {
+                Button {
                     showProcessing = true
-                }) {
+                } label: {
                     HStack {
                         Spacer()
-                        Text("Process Document")
-                            .font(.headline)
+                        Text("Process Document").font(.headline)
                         Spacer()
                     }
                 }
-                .disabled(viewModel.inputData.text == nil && viewModel.inputData.image == nil)
+                .disabled(viewModel.inputData == nil)
             }
         }
         .navigationTitle("Input")
+
+        // Camera
         .sheet(isPresented: $showCamera) {
-            ImagePicker(image: $viewModel.inputData.image)
+            ImagePicker(image: Binding(
+                get: { viewModel.selectedImage },
+                set: { viewModel.setImage($0) }
+            ))
         }
+
+        // PhotosPicker -> UIImage
         .onChange(of: selectedItem) { newItem in
             Task {
                 if let data = try? await newItem?.loadTransferable(type: Data.self),
                    let uiImage = UIImage(data: data) {
-                    viewModel.inputData.image = uiImage
+                    viewModel.setImage(uiImage)
                 }
             }
         }
-        .background(
-            NavigationLink(destination: ProcessingView(input: viewModel.inputData), isActive: $showProcessing) {
-                EmptyView()
+        .alert("Can’t Import", isPresented: $showPickError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(pickErrorMessage)
+        }
+
+        // PDF picker
+        .fileImporter(
+            isPresented: $showPDFImporter,
+            allowedContentTypes: [.pdf],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                viewModel.setPDFURL(copyToTempIfNeeded(url: url) ?? url)
+            case .failure:
+                break
             }
+        }
+
+        // Image from Files picker
+        .fileImporter(
+            isPresented: $showImageImporter,
+            allowedContentTypes: [.image],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                let usable = copyToTempIfNeeded(url: url) ?? url
+
+                // ✅ If a PDF somehow shows up here, reject it and tell the user what to do.
+                if let type = try? usable.resourceValues(forKeys: [.contentTypeKey]).contentType,
+                   type.conforms(to: .pdf) {
+                    pickErrorMessage = "That’s a PDF. Use “Choose PDF (Files)” instead."
+                    showPickError = true
+                    return
+                }
+
+                if let data = try? Data(contentsOf: usable),
+                   let img = UIImage(data: data) {
+                    viewModel.setImage(img)
+                } else {
+                    pickErrorMessage = "Couldn’t load that image file."
+                    showPickError = true
+                }
+
+            case .failure(let error):
+                pickErrorMessage = "File import failed: \(error.localizedDescription)"
+                showPickError = true
+            }
+        }
+        // Navigate to processing
+        .background(
+            NavigationLink(
+                destination: Group {
+                    if let input = viewModel.inputData {
+                        ProcessingView(input: input)
+                    } else {
+                        EmptyView()
+                    }
+                },
+                isActive: $showProcessing
+            ) { EmptyView() }
         )
     }
 }
 
-// Simple ImagePicker for camera
+// Camera picker
 struct ImagePicker: UIViewControllerRepresentable {
     @Binding var image: UIImage?
     @Environment(\.dismiss) private var dismiss
@@ -123,18 +213,16 @@ struct ImagePicker: UIViewControllerRepresentable {
 
     func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
         var parent: ImagePicker
+        init(_ parent: ImagePicker) { self.parent = parent }
 
-        init(_ parent: ImagePicker) {
-            self.parent = parent
-        }
-
-        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+        func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]
+        ) {
             if let uiImage = info[.originalImage] as? UIImage {
                 parent.image = uiImage
             }

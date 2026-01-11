@@ -43,6 +43,118 @@ final class GeminiService {
 
     // NOTE: gemini-1.5-* model IDs may return 404; use a current Gemini model ID.
     private let model = "gemini-2.5-flash"
+    
+    
+    struct GeminiTimelineItemJSON: Decodable {
+        let date: String          // ISO "YYYY-MM-DD"
+        let label: String?        // optional: "Day 1", "3–5 days"
+        let tasks: [String]
+    }
+
+    struct GeminiTimelineJSON: Decodable {
+        let anchorDate: String?   // ISO date if found
+        let items: [GeminiTimelineItemJSON]
+    }
+
+
+
+        /// Create a patient timeline with REAL dates based on the original medical document and simplified text.
+        func extractTimeline(from originalText: String, simplifiedText: String?) async throws -> GeminiTimelineJSON {
+            let urlString =
+            "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent?key=\(Constants.geminiKey)"
+
+            guard let url = URL(string: urlString) else { throw URLError(.badURL) }
+
+            let prompt = """
+    You are a medical communication assistant.
+
+    Task:
+    Create a patient timeline with REAL DATES based on the medical document.
+
+    Rules:
+    - Use dates explicitly mentioned in the document (e.g., visit date, discharge date, follow-up date).
+    - Convert relative timing into dates using the anchor date from the document:
+      - "in 3-5 days" => add 3 days (earliest) and mention the range in label
+      - "within 48 hours" => +2 days
+      - "tomorrow" => +1 day
+    - ONLY include tasks that are actual patient instructions.
+    - If no anchor date exists in the document, set anchorDate to null and DO NOT invent dates.
+    - Create a recovery timeline and provide advice on how to recovery-- very brief
+
+    Return STRICT JSON ONLY in this schema:
+    {
+      "anchorDate": "YYYY-MM-DD" or null,
+      "items": [
+        { "date": "YYYY-MM-DD", "label": "string or null", "tasks": ["..."] }
+      ]
+    }
+
+    ORIGINAL DOCUMENT TEXT:
+    \(originalText)
+
+    SIMPLIFIED (optional):
+    \(simplifiedText ?? "")
+    """
+
+            let body: [String: Any] = [
+                "contents": [["parts": [["text": prompt]]]],
+                "generationConfig": ["temperature": 0.1]
+            ]
+
+            let jsonData = try JSONSerialization.data(withJSONObject: body)
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = jsonData
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+
+            print("Gemini (timeline) HTTP status:", http.statusCode)
+
+            if !(200...299).contains(http.statusCode) {
+                if let apiErr = try? JSONDecoder().decode(GeminiAPIErrorResponse.self, from: data) {
+                    throw NSError(
+                        domain: "GeminiAPI",
+                        code: apiErr.error.code ?? http.statusCode,
+                        userInfo: [NSLocalizedDescriptionKey: "Gemini error: \(apiErr.error.message)"]
+                    )
+                }
+                let raw = String(data: data, encoding: .utf8) ?? "<no body>"
+                throw NSError(
+                    domain: "GeminiAPI",
+                    code: http.statusCode,
+                    userInfo: [NSLocalizedDescriptionKey: "Gemini HTTP \(http.statusCode): \(raw)"]
+                )
+            }
+
+            let decoded = try JSONDecoder().decode(GeminiResponse.self, from: data)
+            let output = decoded.candidates.first?.content.parts.compactMap { $0.text }.joined() ?? ""
+            let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard let start = trimmed.firstIndex(of: "{"),
+                  let end = trimmed.lastIndex(of: "}") else {
+                throw NSError(
+                    domain: "GeminiAPI",
+                    code: -2,
+                    userInfo: [NSLocalizedDescriptionKey: "Timeline JSON not found in response"]
+                )
+            }
+
+            let jsonSlice = String(trimmed[start...end])
+            return try JSONDecoder().decode(GeminiTimelineJSON.self, from: Data(jsonSlice.utf8))
+        }
+
+        /// Convenience static wrapper for ViewModels
+        
+
+    static func extractTimeline(originalText: String, simplifiedText: String?) async throws -> GeminiTimelineJSON {
+        let service = GeminiService()
+        return try await service.extractTimeline(from: originalText, simplifiedText: simplifiedText)
+    }
+
+    
     func simplifyMedicalText(_ text: String) async throws -> String {
 
         let urlString =
@@ -65,8 +177,9 @@ Rules:
 - Do NOT change medication doses or timing
 - Explain abbreviations (e.g., PRN, BID, SOB)
 - Use short sentences
-- Use bullet points if helpful
-- Keep meaning exactly the same
+- Use bullet points if helpful with no headers and keep it cohesive 
+- Keep items short and actionable.
+- Keep meaning exactly the same and ignore section headers
 
 Medical text:
 \(text)
@@ -369,110 +482,4 @@ SIMPLE ENGLISH:
         return try await service.extractMedications(from: simpleEnglish)
     }
 }
-
-struct GeminiTimelineItemJSON: Decodable {
-    let date: String          // ISO "YYYY-MM-DD"
-    let label: String?        // optional: "Day 1", "3–5 days"
-    let tasks: [String]
-}
-
-struct GeminiTimelineJSON: Decodable {
-    let anchorDate: String?   // ISO date if found
-    let items: [GeminiTimelineItemJSON]
-}
-
-
-
-    /// Create a patient timeline with REAL dates based on the original medical document and simplified text.
-    func extractTimeline(from originalText: String, simplifiedText: String?) async throws -> GeminiTimelineJSON {
-        let urlString =
-        "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent?key=\(Constants.geminiKey)"
-
-        guard let url = URL(string: urlString) else { throw URLError(.badURL) }
-
-        let prompt = """
-You are a medical communication assistant.
-
-Task:
-Create a patient timeline with REAL DATES based on the medical document.
-
-Rules:
-- Use dates explicitly mentioned in the document (e.g., visit date, discharge date, follow-up date).
-- Convert relative timing into dates using the anchor date from the document:
-  - "in 3-5 days" => add 3 days (earliest) and mention the range in label
-  - "within 48 hours" => +2 days
-  - "tomorrow" => +1 day
-- ONLY include tasks that are actual patient instructions.
-- If no anchor date exists in the document, set anchorDate to null and DO NOT invent dates.
-
-Return STRICT JSON ONLY in this schema:
-{
-  "anchorDate": "YYYY-MM-DD" or null,
-  "items": [
-    { "date": "YYYY-MM-DD", "label": "string or null", "tasks": ["..."] }
-  ]
-}
-
-ORIGINAL DOCUMENT TEXT:
-\(originalText)
-
-SIMPLIFIED (optional):
-\(simplifiedText ?? "")
-"""
-
-        let body: [String: Any] = [
-            "contents": [["parts": [["text": prompt]]]],
-            "generationConfig": ["temperature": 0.1]
-        ]
-
-        let jsonData = try JSONSerialization.data(withJSONObject: body)
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = jsonData
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-
-        print("Gemini (timeline) HTTP status:", http.statusCode)
-
-        if !(200...299).contains(http.statusCode) {
-            if let apiErr = try? JSONDecoder().decode(GeminiAPIErrorResponse.self, from: data) {
-                throw NSError(
-                    domain: "GeminiAPI",
-                    code: apiErr.error.code ?? http.statusCode,
-                    userInfo: [NSLocalizedDescriptionKey: "Gemini error: \(apiErr.error.message)"]
-                )
-            }
-            let raw = String(data: data, encoding: .utf8) ?? "<no body>"
-            throw NSError(
-                domain: "GeminiAPI",
-                code: http.statusCode,
-                userInfo: [NSLocalizedDescriptionKey: "Gemini HTTP \(http.statusCode): \(raw)"]
-            )
-        }
-
-        let decoded = try JSONDecoder().decode(GeminiResponse.self, from: data)
-        let output = decoded.candidates.first?.content.parts.compactMap { $0.text }.joined() ?? ""
-        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard let start = trimmed.firstIndex(of: "{"),
-              let end = trimmed.lastIndex(of: "}") else {
-            throw NSError(
-                domain: "GeminiAPI",
-                code: -2,
-                userInfo: [NSLocalizedDescriptionKey: "Timeline JSON not found in response"]
-            )
-        }
-
-        let jsonSlice = String(trimmed[start...end])
-        return try JSONDecoder().decode(GeminiTimelineJSON.self, from: Data(jsonSlice.utf8))
-    }
-
-    /// Convenience static wrapper for ViewModels
-    static func extractTimeline(originalText: String, simplifiedText: String?) async throws -> GeminiTimelineJSON {
-        let service = GeminiService()
-        return try await service.extractTimeline(from: originalText, simplifiedText: simplifiedText)
-    }
 

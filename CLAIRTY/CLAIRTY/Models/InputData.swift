@@ -5,13 +5,26 @@
 //  Created by Syaan Merchant on 2026-01-10.
 //
 
+//
+//  InputData.swift
+//  CLAIRTY
+//
+
 import Foundation
-import UIKit  // Added for UIImage
+import UIKit
 
 struct InputData {
-    var text: String?
-    var image: UIImage?  // Now works with UIKit import
-    var diagnosis: String?
-    var symptoms: [String]?
-    var medications: [String]?
+    /// Exactly one of these should be non-nil.
+    var image: UIImage?
+    var pdfURL: URL?
+
+    init(image: UIImage) {
+        self.image = image
+        self.pdfURL = nil
+    }
+
+    init(pdfURL: URL) {
+        self.image = nil
+        self.pdfURL = pdfURL
+    }
 }

@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		05F5B6D02F134C5500CAAE3C /* OpenAIKit in Frameworks */ = {isa = PBXBuildFile; productRef = 05F5B6CF2F134C5500CAAE3C /* OpenAIKit */; };
+		05F5B6D62F13EC9A00CAAE3C /* PDFKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 05F5B6D52F13EC9A00CAAE3C /* PDFKit.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -31,6 +32,7 @@
 		052B98FF2F13189F00CE442B /* CLAIRTY.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CLAIRTY.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		052B990F2F1318A100CE442B /* CLAIRTYTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CLAIRTYTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		052B99192F1318A100CE442B /* CLAIRTYUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CLAIRTYUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		05F5B6D52F13EC9A00CAAE3C /* PDFKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = PDFKit.framework; path = System/Library/Frameworks/PDFKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -69,6 +71,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				05F5B6D62F13EC9A00CAAE3C /* PDFKit.framework in Frameworks */,
 				05F5B6D02F134C5500CAAE3C /* OpenAIKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -114,6 +117,7 @@
 		05F5B6CE2F134C5500CAAE3C /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				05F5B6D52F13EC9A00CAAE3C /* PDFKit.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";

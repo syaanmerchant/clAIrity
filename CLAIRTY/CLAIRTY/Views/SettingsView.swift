@@ -8,16 +8,18 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @State private var selectedLanguage = "en"
+    @AppStorage("languageCode") private var selectedLanguage = "en"
 
     var body: some View {
         Form {
             Picker("Language", selection: $selectedLanguage) {
                 Text("English").tag("en")
                 Text("Spanish").tag("es")
-                // Add more as needed
+                Text("French").tag("fr")
+                Text("Hindi").tag("hi")
+                Text("Punjabi").tag("pa")
+                Text("Urdu").tag("ur")
             }
-            // Integrate with TranslationService if needed
         }
         .navigationTitle("Settings")
     }

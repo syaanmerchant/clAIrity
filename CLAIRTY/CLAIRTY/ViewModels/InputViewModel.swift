@@ -5,17 +5,36 @@
 //  Created by Syaan Merchant on 2026-01-10.
 //
 
-import SwiftUI
-import Combine
+//
+//  InputViewModel.swift
+//  CLAIRTY
+//
 
-class InputViewModel: ObservableObject {
-    @Published var inputData = InputData()
-    @Published var shouldNavigateToProcessing = false
+import Foundation
+import UIKit
 
-    func processInput() {
-        // Basic validation
-        if inputData.text != nil || inputData.image != nil {
-            shouldNavigateToProcessing = true
-        }
+final class InputViewModel: ObservableObject {
+    @Published var selectedImage: UIImage? = nil
+    @Published var selectedPDFURL: URL? = nil
+
+    var inputData: InputData? {
+        if let img = selectedImage { return InputData(image: img) }
+        if let url = selectedPDFURL { return InputData(pdfURL: url) }
+        return nil
+    }
+
+    func setImage(_ image: UIImage?) {
+        selectedImage = image
+        if image != nil { selectedPDFURL = nil }
+    }
+
+    func setPDFURL(_ url: URL?) {
+        selectedPDFURL = url
+        if url != nil { selectedImage = nil }
+    }
+
+    func clearSelection() {
+        selectedImage = nil
+        selectedPDFURL = nil
     }
 }
