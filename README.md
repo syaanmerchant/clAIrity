@@ -68,37 +68,7 @@ The system:
 
 ---
 
-### C. Outputs
 
-Information is presented in structured, easy-to-scan cards:
-
-#### 🧾 Card 1 — Understanding  
-**“Here’s what this means (in plain English)”**
-
-#### ✅ Card 2 — What You Need To Do  
-- Checklist of required and optional actions
-
-#### 💊 Card 3 — Medications  
-- What to take  
-- When to take it  
-- How long to take it  
-- Notes (with/without food, interactions, etc.)
-
-#### 🗓 Card 4 — Timeline  
-- Today  
-- This week  
-- Follow-up milestones
-
-#### 🚨 Card 5 — Recovery Signs  
-- What’s normal
-- Red flags / warning signs
-
-#### ❓ Card 6 — Questions To Ask  
-- Doctor
-- Pharmacy
-- Insurance (if applicable)
-
----
 
 ## 🩺 After-Care Logic
 
@@ -112,16 +82,6 @@ clarity supports ongoing care by enabling:
 - ✔ Reminders for appointments, labs, and follow-ups
 - ✔ Self-check prompts  
   *(“Is this normal?”)*
-
----
-
-## 🔐 Privacy by Design
-
-- No user accounts
-- No persistent data storage
-- No tracking
-
-All information is processed locally or transiently during use.
 
 ---
 
@@ -181,8 +141,6 @@ clarity is built with a modern, modular stack designed for rapid iteration, reli
 - Inputs are processed transiently and discarded after use
 
 ---
-
-## 🌱 Why clarity::
 
 Healthcare doesn’t fail because people don’t care — it fails because instructions are unclear.
 
